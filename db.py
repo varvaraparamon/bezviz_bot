@@ -27,7 +27,6 @@ class DB:
 
     async def refund_order(self, order_id: str):
         """Возврат средств за заказ (обновляет только таблицу coins)"""
-        # Получаем user_id и сумму заказа
         user_id = await self.get_order_user_id(order_id)
         if not user_id:
             raise ValueError("User not found for this order")
@@ -36,7 +35,6 @@ class DB:
         if not refund_amount:
             raise ValueError("Order price not found")
         
-        # Возвращаем coins
         await self.refund_user_coins(user_id, refund_amount)
 
     async def get_order_price(self, order_id: str) -> float:
@@ -59,7 +57,6 @@ class DB:
     async def refund_user_coins(self, user_id: int, amount: float):
         """Возвращает coins пользователю"""
         try:
-            # Получаем текущее количество coins
             response = await self.supabase.table('coins') \
                                         .select('coins') \
                                         .eq('user_id', user_id) \
@@ -67,12 +64,10 @@ class DB:
                                         .execute()
             
             if not response.data:
-                # Если записи нет, создаём новую
                 await self.supabase.table('coins') \
                                 .insert({'user_id': user_id, 'coins': amount}) \
                                 .execute()
             else:
-                # Если запись есть, обновляем
                 current_coins = response.data.get('coins', 0)
                 new_coins = current_coins + amount
                 
@@ -104,7 +99,7 @@ class DB:
                                        .execute()
 
             if response.data:
-                final_order_id = response.data['order_id']  # Это UUID (строка)
+                final_order_id = response.data['order_id'] 
                 print(response.data)
                 partner_product_data = response.data.get('partners_products', {})
                 product_name = partner_product_data.get('name')

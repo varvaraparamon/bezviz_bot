@@ -18,6 +18,8 @@ dp.include_router(router)
 
 db = DB()
 
+
+
 registered_employees = {}  # {user_id: place_id}
 pending_orders = {}  # {order_id: order_info}
 sent_order_messages = {}
@@ -109,7 +111,6 @@ async def handle_new_order(order_info):
                     parse_mode="HTML",
                     reply_markup=builder.as_markup()
                 )
-                            # Сохраняем ID сообщения
                 if user_id not in sent_order_messages:
                     sent_order_messages[user_id] = []
                 sent_order_messages[user_id].append((order_id, msg.message_id))
@@ -179,7 +180,7 @@ async def reject_order(callback: CallbackQuery):
 async def delete_order_messages(order_id):
     for user_id, messages in list(sent_order_messages.items()):
         for msg_data in messages[:]:
-            if msg_data[0] == order_id:  # order_id совпадает
+            if msg_data[0] == order_id: 
                 try:
                     await bot.delete_message(user_id, msg_data[1])
                     messages.remove(msg_data)
