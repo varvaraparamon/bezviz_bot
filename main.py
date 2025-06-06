@@ -20,6 +20,7 @@ db = DB()
 
 registered_employees = {}  # {user_id: place_id}
 pending_orders = {}  # {order_id: order_info}
+sent_order_messages = {}
 
 @router.message(Command('start'))
 async def start(message: Message):
@@ -31,6 +32,7 @@ async def start(message: Message):
         "Нажмите кнопку ниже, чтобы зарегистрироваться как сотрудник:",
         reply_markup=builder.as_markup(resize_keyboard=True)
     )
+    sent_order_messages[message.from_user.id] = []
 
 @router.message(lambda message: message.text == "📝 Зарегистрироваться")
 async def register_handler(message: Message):
@@ -97,7 +99,7 @@ async def handle_new_order(order_info):
     for user_id, emp_place_id in registered_employees.items():
         if emp_place_id == place_id:
             try:
-                await bot.send_message(
+                msg = await bot.send_message(
                     user_id,
                     f"📦 <b>Новый заказ!</b>\n"
                     f"├ ID заказа: <code>{order_id}</code>\n"
@@ -107,6 +109,10 @@ async def handle_new_order(order_info):
                     parse_mode="HTML",
                     reply_markup=builder.as_markup()
                 )
+                            # Сохраняем ID сообщения
+                if user_id not in sent_order_messages:
+                    sent_order_messages[user_id] = []
+                sent_order_messages[user_id].append((order_id, msg.message_id))
             except Exception as e:
                 print(f"Ошибка при отправке сообщения пользователю {user_id}: {e}")
 
@@ -129,6 +135,7 @@ async def approve_order(callback: CallbackQuery):
             f"└ Товар: {order_info['name']}",
             parse_mode="HTML"
         )
+        await delete_order_messages(order_id)
         await callback.answer()
         
     except Exception as e:
@@ -162,11 +169,22 @@ async def reject_order(callback: CallbackQuery):
             f"└ Возвращено: <code>{refund_amount}</code> coins",
             parse_mode="HTML"
         )
+        await delete_order_messages(order_id)
         await callback.answer()
         
     except Exception as e:
         await callback.answer(f"Ошибка при отклонении: {str(e)}", show_alert=True)
         print(f"Ошибка при отклонении заказа {order_id}: {e}")
+
+async def delete_order_messages(order_id):
+    for user_id, messages in list(sent_order_messages.items()):
+        for msg_data in messages[:]:
+            if msg_data[0] == order_id:  # order_id совпадает
+                try:
+                    await bot.delete_message(user_id, msg_data[1])
+                    messages.remove(msg_data)
+                except Exception as e:
+                    print(f"Не удалось удалить сообщение: {e}")
 
 async def run_db_listener():
     await db.initialize()
