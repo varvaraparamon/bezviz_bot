@@ -130,13 +130,13 @@ async def approve_order(callback: CallbackQuery):
         pending_orders.pop(order_id, None)
         await db.update_order_status(order_id, "success")
         
-        await callback.message.edit_text(
+        await update_order_messages(
+            order_id,
             f"✅ <b>Заказ одобрен</b>\n"
             f"├ ID: <code>{order_id[:8]}...</code>\n"
             f"└ Товар: {order_info['name']}",
-            parse_mode="HTML"
+            show_buttons=False
         )
-        await delete_order_messages(order_id)
         await callback.answer()
         
     except Exception as e:
@@ -163,29 +163,44 @@ async def reject_order(callback: CallbackQuery):
         await db.update_order_status(order_id, "cancel")
         await db.refund_user_coins(user_id, refund_amount)
         
-        await callback.message.edit_text(
+        await update_order_messages(
+            order_id,
             f"❌ <b>Заказ отклонён</b>\n"
             f"├ ID: <code>{order_id[:8]}...</code>\n"
             f"├ Товар: {order_info['name']}\n"
             f"└ Возвращено: <code>{refund_amount}</code> coins",
-            parse_mode="HTML"
+            show_buttons=False
         )
-        await delete_order_messages(order_id)
         await callback.answer()
+        
         
     except Exception as e:
         await callback.answer(f"Ошибка при отклонении: {str(e)}", show_alert=True)
         print(f"Ошибка при отклонении заказа {order_id}: {e}")
 
-async def delete_order_messages(order_id):
+async def update_order_messages(order_id: str, new_text: str, show_buttons: bool = False):
+    """Обновляет все сообщения о заказе новым текстом"""
     for user_id, messages in list(sent_order_messages.items()):
         for msg_data in messages[:]:
-            if msg_data[0] == order_id: 
+            if msg_data[0] == order_id:
                 try:
-                    await bot.delete_message(user_id, msg_data[1])
-                    messages.remove(msg_data)
+                    if show_buttons:
+                        builder = InlineKeyboardBuilder()
+                        builder.button(text="✅ Одобрить", callback_data=f"approve_{order_id}")
+                        builder.button(text="❌ Отклонить", callback_data=f"reject_{order_id}")
+                        markup = builder.as_markup()
+                    else:
+                        markup = None
+                    
+                    await bot.edit_message_text(
+                        text=new_text,
+                        chat_id=user_id,
+                        message_id=msg_data[1],
+                        parse_mode="HTML",
+                        reply_markup=markup
+                    )
                 except Exception as e:
-                    print(f"Не удалось удалить сообщение: {e}")
+                    print(f"Не удалось обновить сообщение: {e}")
 
 async def run_db_listener():
     await db.initialize()
