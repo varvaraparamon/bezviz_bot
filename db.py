@@ -18,6 +18,20 @@ class DB:
         self.supabase = await acreate_client(self.url, self.key)
         print("Supabase async client initialized successfully.")
 
+    async def get_employee_by_uuid_and_place(self, employee_uuid: str, place_id: int) -> dict:
+        """Проверяет существование связки employee_id + place_id"""
+        try:
+            response = await self.supabase.table('partners_and_places_link') \
+                                    .select('*') \
+                                    .eq('employee_id', employee_uuid) \
+                                    .eq('id', place_id) \
+                                    .maybe_single() \
+                                    .execute()
+            return response.data if response.data else None
+        except Exception as e:
+            print(f"Ошибка при проверке связки сотрудник-место: {e}")
+            return None
+
     async def update_order_status(self, order_id: str, status: str):
         """Обновляет только статус заказа в таблице orders"""
         await self.supabase.table('orders') \

@@ -7,6 +7,7 @@ import asyncio
 import os
 from dotenv import load_dotenv
 from db import DB
+import uuid
 
 load_dotenv()
 
@@ -39,35 +40,59 @@ async def start(message: Message):
 @router.message(lambda message: message.text == "📝 Зарегистрироваться")
 async def register_handler(message: Message):
     await message.answer(
-        "🔐 Для регистрации введите ID места в формате:\n"
-        "<code>/register ID_места</code>\n\n"
-        "Например: <code>/register 1</code>",
+        "🔐 Для регистрации введите:\n"
+        "<code>/register ID_места UUID_сотрудника</code>\n\n"
+        "Пример:\n"
+        "<code>/register 1 550e8400-e29b-41d4-a716-446655440000</code>",
         parse_mode="HTML"
     )
 
 @router.message(Command('register'))
 async def register(message: Message):
-    args = message.text.split()[1] if len(message.text.split()) > 1 else None
+    args = message.text.split()[1:] if len(message.text.split()) > 1 else []
     
-    if not args:
+    if len(args) != 2:
         await message.answer(
-            "❌ Не указан ID места\n"
-            "Формат: <code>/register ID_места</code>\n"
-            "Пример: <code>/register 1</code>",
+            "❌ Необходимо указать ОБА параметра:\n"
+            "<code>/register ID_места UUID_сотрудника</code>\n\n"
+            "Пример:\n"
+            "<code>/register 1 550e8400-e29b-41d4-a716-446655440000</code>",
             parse_mode="HTML"
         )
         return
     
+    place_id_str, employee_uuid_str = args
+    
     try:
-        place_id = int(args.strip())
-        
+        # Проверяем place_id
+        place_id = int(place_id_str)
         if place_id <= 0:
             raise ValueError("ID места должен быть положительным числом")
+        
+        # Проверяем UUID
+        try:
+            employee_uuid = uuid.UUID(employee_uuid_str)
+        except ValueError:
+            raise ValueError("UUID сотрудника имеет неверный формат")
+        
+        # Проверяем существование связки в БД
+        employee_data = await db.get_employee_by_uuid_and_place(
+            str(employee_uuid),
+            place_id
+        )
+        
+        if not employee_data:
+            await message.answer(
+                "❌ Сотрудник с таким UUID не найден для указанного места",
+                parse_mode="HTML"
+            )
+            return
             
         registered_employees[message.from_user.id] = place_id
         await message.answer(
             f"✅ <b>Регистрация успешно завершена!</b>\n"
-            f"Вы зарегистрированы для места с ID: <code>{place_id}</code>\n\n"
+            f"Место: <code>{place_id}</code>\n"
+            f"Сотрудник: <code>{employee_uuid}</code>\n\n"
             f"Теперь вы будете получать уведомления о новых заказах.",
             parse_mode="HTML"
         )
@@ -76,11 +101,10 @@ async def register(message: Message):
         await message.answer(
             f"❌ <b>Ошибка регистрации</b>\n"
             f"{str(e)}\n\n"
-            f"Правильный формат: <code>/register ID_места</code>\n"
-            f"Пример: <code>/register 1</code>",
+            f"Правильный формат: <code>/register ID_места UUID_сотрудника</code>\n"
+            f"Пример: <code>/register 1 550e8400-e29b-41d4-a716-446655440000</code>",
             parse_mode="HTML"
         )
-
 async def handle_new_order(order_info):
     if not order_info:
         return
